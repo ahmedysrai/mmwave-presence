@@ -1,0 +1,21 @@
+[project]
+name = "mmpresence"
+version = "0.0.1"
+description = "Through-wall presence sensing with simulated FMCW radar"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
