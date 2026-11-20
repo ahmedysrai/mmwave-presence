@@ -85,3 +85,28 @@ def breathing_range_m(t_s, range_m, rate_hz, depth_m, rng=None):
     """
     phase = 0.0 if rng is None else rng.uniform(0, 2 * np.pi)
     return range_m + depth_m / 2 * np.sin(2 * np.pi * rate_hz * t_s + phase)
+
+
+def fan_ranges_m(
+    t_s, hub_range_m, hub_height_m, radius_m, rpm, n_blades=3, n_points=4, rng=None
+):
+    """Range to points along the blades of a ceiling fan.
+
+    The blades turn in a horizontal plane hub_height_m above the radar, with
+    the hub hub_range_m away horizontally. Each blade is n_points scatterers
+    spread from a quarter of radius_m out to the tip. Returns
+    (n_blades * n_points, len(t_s)) ranges in metres, blade by blade.
+
+    Ignored: blade pitch, the antenna's elevation pattern, and the fact that
+    a flat blade reflects mostly when it faces the radar. The motor housing
+    is static and belongs in the scene as its own target if wanted.
+    """
+    theta0 = 0.0 if rng is None else rng.uniform(0, 2 * np.pi)
+    w_rad_s = 2 * np.pi * rpm / 60
+    blades = theta0 + 2 * np.pi * np.arange(n_blades) / n_blades
+    theta = blades[:, None, None] + w_rad_s * np.asarray(t_s)
+    rho = np.linspace(0.25, 1.0, n_points)[None, :, None] * radius_m
+    x = hub_range_m + rho * np.cos(theta)
+    y = rho * np.sin(theta)
+    r = np.sqrt(x**2 + y**2 + hub_height_m**2)
+    return r.reshape(n_blades * n_points, -1)

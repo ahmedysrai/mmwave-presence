@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from mmpresence.fmcw import range_resolution_m
-from mmpresence.sim import ChirpConfig, breathing_range_m, if_frames
+from mmpresence.sim import ChirpConfig, breathing_range_m, fan_ranges_m, if_frames
 
 
 @pytest.fixture
@@ -48,3 +48,22 @@ def test_breathing_range_swings_by_depth():
     r = breathing_range_m(t, 2.0, 0.25, 0.008)
     assert r.max() - r.min() == pytest.approx(0.008, rel=1e-3)
     assert r.mean() == pytest.approx(2.0, abs=1e-6)
+
+
+def test_fan_tip_range_spans_near_and_far_side_of_hub():
+    # one revolution at 120 rpm is 0.5 s; sample it finely
+    t = np.linspace(0, 0.5, 2001)
+    r = fan_ranges_m(t, 3.0, 1.4, 0.66, 120, n_blades=1, n_points=4)
+    tip = r[-1]
+    assert tip.min() == pytest.approx(np.hypot(3.0 - 0.66, 1.4), abs=1e-5)
+    assert tip.max() == pytest.approx(np.hypot(3.0 + 0.66, 1.4), abs=1e-5)
+
+
+def test_fan_looks_the_same_after_one_blade_spacing():
+    # three blades: the set of scatterer ranges repeats every third of a turn
+    rpm = 150
+    dt = 60 / rpm / 3
+    t = np.array([0.0137, 0.0137 + dt])
+    r = fan_ranges_m(t, 2.5, 1.2, 0.6, rpm, rng=np.random.default_rng(3))
+    np.testing.assert_allclose(np.sort(r[:, 0]), np.sort(r[:, 1]), atol=1e-12)
+    assert not np.allclose(r[:, 0], r[:, 1])  # but each point has moved on
