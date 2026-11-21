@@ -2,7 +2,13 @@ import numpy as np
 import pytest
 
 from mmpresence.fmcw import range_resolution_m
-from mmpresence.sim import ChirpConfig, breathing_range_m, fan_ranges_m, if_frames
+from mmpresence.sim import (
+    ChirpConfig,
+    breathing_range_m,
+    fan_echo,
+    fan_ranges_m,
+    if_frames,
+)
 
 
 @pytest.fixture
@@ -67,3 +73,28 @@ def test_fan_looks_the_same_after_one_blade_spacing():
     r = fan_ranges_m(t, 2.5, 1.2, 0.6, rpm, rng=np.random.default_rng(3))
     np.testing.assert_allclose(np.sort(r[:, 0]), np.sort(r[:, 1]), atol=1e-12)
     assert not np.allclose(r[:, 0], r[:, 1])  # but each point has moved on
+
+
+def test_fan_segment_flashes_across_line_of_sight():
+    # far field, one blade, one segment, theta0 = 0, 60 rpm (theta = 2 pi t).
+    # At t = 0 the blade points along the line of sight. It lies across it
+    # when the blade is perpendicular to the hub-to-centre vector seen from
+    # the radar: cos(theta) = -rho_c / D, a little past a quarter turn.
+    lam, hub_m, radius = 5e-3, 2000.0, 0.66  # 2 L^2 / lam is 98 m
+    rho_c = 0.625 * radius
+    t_across = np.arccos(-rho_c / hub_m) / (2 * np.pi)
+    _, g = fan_echo([0.0, t_across], hub_m, 0.0, radius, 60, lam, 1, n_segments=1)
+    assert abs(g[0, 1]) == pytest.approx(1.0, abs=1e-3)
+    assert abs(g[0, 0]) < 0.01
+
+
+def test_fan_segment_mean_power_over_a_turn():
+    # far field |g|^2 is sinc^2 around each of the two broadside crossings,
+    # each worth lambda / (2 L) rad, so the mean over a turn is lambda / (2 pi L)
+    lam, radius = 5e-3, 0.66
+    t = np.linspace(0, 1, 20_000, endpoint=False)
+    _, g = fan_echo(t, 200.0, 0.0, radius, 60, lam, n_blades=1, n_segments=2)
+    seg_m = 0.75 * radius / 2
+    np.testing.assert_allclose(
+        np.mean(np.abs(g) ** 2, axis=1), lam / (2 * np.pi * seg_m), rtol=0.02
+    )

@@ -87,6 +87,17 @@ def breathing_range_m(t_s, range_m, rate_hz, depth_m, rng=None):
     return range_m + depth_m / 2 * np.sin(2 * np.pi * rate_hz * t_s + phase)
 
 
+def _fan_point_ranges_m(t_s, hub_range_m, hub_height_m, rho_m, rpm, n_blades, theta0):
+    """Ranges (n_blades, len(rho_m), len(t_s)) to points rho_m out along each blade."""
+    w_rad_s = 2 * np.pi * rpm / 60
+    blades = theta0 + 2 * np.pi * np.arange(n_blades) / n_blades
+    theta = blades[:, None, None] + w_rad_s * np.asarray(t_s)
+    rho = np.asarray(rho_m)[None, :, None]
+    x = hub_range_m + rho * np.cos(theta)
+    y = rho * np.sin(theta)
+    return np.sqrt(x**2 + y**2 + hub_height_m**2)
+
+
 def fan_ranges_m(
     t_s, hub_range_m, hub_height_m, radius_m, rpm, n_blades=3, n_points=4, rng=None
 ):
@@ -98,15 +109,61 @@ def fan_ranges_m(
     (n_blades * n_points, len(t_s)) ranges in metres, blade by blade.
 
     Ignored: blade pitch, the antenna's elevation pattern, and the fact that
-    a flat blade reflects mostly when it faces the radar. The motor housing
-    is static and belongs in the scene as its own target if wanted.
+    a flat blade reflects mostly when it faces the radar (fan_echo has
+    that). The motor housing is static and belongs in the scene as its own
+    target if wanted.
     """
     theta0 = 0.0 if rng is None else rng.uniform(0, 2 * np.pi)
-    w_rad_s = 2 * np.pi * rpm / 60
-    blades = theta0 + 2 * np.pi * np.arange(n_blades) / n_blades
-    theta = blades[:, None, None] + w_rad_s * np.asarray(t_s)
-    rho = np.linspace(0.25, 1.0, n_points)[None, :, None] * radius_m
-    x = hub_range_m + rho * np.cos(theta)
-    y = rho * np.sin(theta)
-    r = np.sqrt(x**2 + y**2 + hub_height_m**2)
+    rho = np.linspace(0.25, 1.0, n_points) * radius_m
+    r = _fan_point_ranges_m(t_s, hub_range_m, hub_height_m, rho, rpm, n_blades, theta0)
     return r.reshape(n_blades * n_points, -1)
+
+
+def fan_echo(
+    t_s,
+    hub_range_m,
+    hub_height_m,
+    radius_m,
+    rpm,
+    wavelength_m,
+    n_blades=3,
+    n_segments=4,
+    rng=None,
+):
+    """Blade segments of a ceiling fan with an aspect-dependent return.
+
+    Same geometry as fan_ranges_m, but each blade from a quarter of radius_m
+    to the tip is cut into n_segments straight segments, and each segment
+    is the coherent sum of points spaced wavelength_m / 8 along it. The sum
+    is near 1 when the segment lies across the line of sight and falls off
+    like a sinc as it turns away (a uniform line target), so the return
+    comes in short flashes. The sum is exact in range, so the near-field
+    blur of a segment a few metres away is included.
+
+    Returns (ranges_m, gain): segment centre ranges in metres and complex
+    gains (unit magnitude at broadside in the far field), both
+    (n_blades * n_segments, len(t_s)). Scale gain by the segment's peak
+    amplitude and use the centre range in if_frames.
+
+    The gain is worked out at one wavelength; pass the one at the chirp's
+    mean frequency, which is what the slow-time phase follows. Over a 3 GHz
+    sweep the pattern narrows by 5 % from start to end, which is ignored, as
+    are blade width, pitch and edge diffraction.
+    """
+    theta0 = 0.0 if rng is None else rng.uniform(0, 2 * np.pi)
+    r_in = 0.25 * radius_m
+    seg_m = (radius_m - r_in) / n_segments
+    n_sub = int(np.ceil(8 * seg_m / wavelength_m))
+    u = (np.arange(n_sub) + 0.5) / n_sub - 0.5  # position along a segment, -1/2..1/2
+    centres = r_in + (np.arange(n_segments) + 0.5) * seg_m
+    rho = (centres[:, None] + u * seg_m).ravel()
+    r_sub = _fan_point_ranges_m(
+        t_s, hub_range_m, hub_height_m, rho, rpm, n_blades, theta0
+    ).reshape(n_blades, n_segments, n_sub, -1)
+    r_c = _fan_point_ranges_m(
+        t_s, hub_range_m, hub_height_m, centres, rpm, n_blades, theta0
+    )
+    gain = np.exp(4j * np.pi * (r_sub - r_c[:, :, None]) / wavelength_m).mean(axis=2)
+    return r_c.reshape(n_blades * n_segments, -1), gain.reshape(
+        n_blades * n_segments, -1
+    )
