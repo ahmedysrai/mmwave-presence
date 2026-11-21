@@ -66,3 +66,47 @@ A flat blade flashes when it faces the radar and returns much less at other
 angles, and the model has nothing like that yet. Next: an aspect-dependent
 blade return, then the Doppler FFT, where the fan's aliased, wideband
 spectrum should stand apart from a breathing line near 0 Hz.
+
+## 2026-11-21
+
+The fan blades now flash. Each blade is 4 straight segments, and each segment is
+the coherent sum of points lambda/8 apart along it (`sim.fan_echo`), so it
+returns strongly only while it lies across the line of sight. In the far
+field the mean of |gain|^2 over a turn is lambda / (2 pi L), 0.0063 for a
+12.4 cm segment at the chirp's mean frequency; the test checks this to 2 %.
+At 2 to 4 m the segment is well inside its far-field distance
+(2 L^2 / lambda, about 6 m), and the flash is blunted and wider: with the
+hub 2 to 4 m away and 1.4 m up, peak |gain|^2 is 0.67 to 0.89 and the mean
+over a turn 0.0077 to 0.0066.
+
+To change one thing at a time, `--fan-rcs` now means a segment's RCS
+averaged over a turn and the peak is set to that times 2 pi L / lambda
+(about 160x), so the fan sends back about the same power as yesterday's
+isotropic points. Same seeds as before; `--isotropic-fan` gives yesterday's
+model and reproduces its fan column exactly.
+
+    noise_std  threshold    empty   person      pet      fan
+         0.10   7.08e-05    0/100  100/100   99/100  100/100
+         1.00   7.08e-03    0/100   51/100   11/100   17/100
+         3.00   6.37e-02    0/100   14/100    1/100    2/100
+        10.00   7.08e-01    0/100    3/100    1/100    2/100
+
+At noise 1.0, fan false alarms against the RCS averaged over a turn:
+
+    --fan-rcs   isotropic   flashing
+       0.02       3/100      17/100
+       0.2       41/100      98/100
+       2.0      100/100     100/100
+
+Same mean power, but the flashing fan beats the energy threshold far more
+often. The reason is where the power lands in range. A segment flashes when
+it lies across the line of sight, and so does the rest of its blade, so a
+flash puts the whole blade into one or two range bins. Noise-free, 50
+windows: the largest bin holds a median 51 % of the fan's motion energy
+against 8 % for the isotropic points (more than half the peak in 2 bins
+against 12), and the max-over-bins feature goes from 6.7e-5 to 4.8e-4. The
+person is at 1.4e-3. A fan is a real false-alarm risk for this feature
+after all, and it still rests on a guessed blade RCS. The Doppler FFT is
+next. At 140 rpm a flash lasts about 2 ms, much less than the 50 ms
+between chirps, so a chirp either lands in one or misses it, and the fan
+should spread over every Doppler bin while breathing stays near 0 Hz.
