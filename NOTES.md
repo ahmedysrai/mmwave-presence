@@ -110,3 +110,41 @@ after all, and it still rests on a guessed blade RCS. The Doppler FFT is
 next. At 140 rpm a flash lasts about 2 ms, much less than the 50 ms
 between chirps, so a chirp either lands in one or misses it, and the fan
 should spread over every Doppler bin while breathing stays near 0 Hz.
+
+## 2026-11-22
+
+Doppler FFT over slow time (`doppler.doppler_fft`, Hann over all 400 chirps
+of a window, so 0.05 Hz bins over +-10 Hz). `experiments/doppler_spread.py`
+takes the range bin with the most motion energy, the one the energy
+threshold fires on, and prints the share of its energy above a Doppler
+cut. Same scenes and seeds as the energy threshold, 50 trials, median and
+[5th, 95th] percentile. Noise-free:
+
+    scene   |f_d| > 2 Hz        |f_d| > 4 Hz        |f_d| > 8 Hz
+    person  0.32 [0.00, 0.61]   0.00 [0.00, 0.01]   0.00 [0.00, 0.00]
+    pet     0.01 [0.00, 0.17]   0.00 [0.00, 0.00]   0.00 [0.00, 0.00]
+    fan     0.80 [0.77, 0.84]   0.60 [0.57, 0.64]   0.20 [0.14, 0.24]
+
+The fan comes out flat over the whole span: a flat spectrum gives
+(10 - cut) / 10, which is 0.80, 0.60 and 0.20. That is what yesterday's
+guess said. A flash lasts about 2 ms and the chirps are 50 ms apart, so
+whether a chirp catches one is close to random from chirp to chirp, and
+the tip Doppler (about 4 kHz at 140 rpm) aliases many times over.
+
+Breathing stays under 4 Hz. Phase modulation by a sine of beta radians
+spreads out to about beta times the breathing rate, with
+beta = 2 pi d / lambda for peak-to-peak depth d. At the 10 mm, 0.33 Hz end
+of the person range that is 4.3 Hz, which matches the 0.01 at the 95th
+percentile. The pet, with 1 to 3 mm, stays under 2 Hz most of the time.
+
+With noise the picture depends on the margin. At noise 0.1 the person is
+still 0.03 [0.00, 0.13] above 4 Hz and the fan 0.61, but the pet goes to
+0.20 [0.02, 0.50] because the weaker pets are near the noise. At noise 1.0
+everything reads like the empty room (0.59 above 4 Hz; person 0.53
+[0.16, 0.65]), since the noise is white too. So the high-Doppler share
+alone cannot tell a fan from noise; it has to go with the energy.
+
+One way to use this: in each range bin, the band above 4 Hz estimates the
+flat floor (noise plus fan), so 4/6 of the high-band power estimates the
+floor inside |f_d| < 4 Hz. Low-band power minus that is near zero for
+noise and for the fan and positive for breathing. Not tried yet.
