@@ -38,3 +38,18 @@ def velocity_axis_mps(cfg, n_frames):
     """
     lam_m = C_MPS / (cfg.fc_hz + cfg.bandwidth_hz / 2)
     return doppler_axis_hz(n_frames, cfg.frame_period_s) * lam_m / 2
+
+
+def low_band_excess(power, f_hz, cut_hz=4.0):
+    """Power below cut_hz in Doppler, less the flat floor seen above it.
+
+    power: (n_frames, n_bins) |X|^2 from doppler_fft, f_hz its Doppler axis.
+    The bins at |f_d| >= cut_hz estimate a floor that is flat over the whole
+    span (white noise, and a fan whose flashes alias everywhere, NOTES.md
+    2026-11-22). That floor is taken off every bin below cut_hz, so noise
+    and a fan come out near zero and breathing, which stays below about
+    4 Hz, comes out positive. Returns (n_bins,).
+    """
+    low = np.abs(f_hz) < cut_hz
+    floor = power[~low].mean(axis=0)
+    return power[low].sum(axis=0) - low.sum() * floor
