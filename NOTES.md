@@ -148,3 +148,42 @@ One way to use this: in each range bin, the band above 4 Hz estimates the
 flat floor (noise plus fan), so 4/6 of the high-band power estimates the
 floor inside |f_d| < 4 Hz. Low-band power minus that is near zero for
 noise and for the fan and positive for breathing. Not tried yet.
+
+## 2026-11-23
+
+Tried the low-band excess from yesterday (`doppler.low_band_excess`): in
+each range bin, Doppler power at |f_d| < 4 Hz minus the number of those
+bins times the mean power at |f_d| >= 4 Hz, then the max over range beyond
+0.5 m. `experiments/low_band.py` runs it on the same windows as the energy
+threshold, each feature with its own threshold (largest empty-room value
+on the validation seed), 100 trials per scene:
+
+    noise_std   energy: person  pet  fan    low band: person  pet  fan
+    0.10                100     99   100              100     97   34
+    1.00                 51     11    17               46      8    0
+    3.00                 14      1     2                7      0    0
+    10.00                 3      1     2                0      0    0
+
+(Empty room 0/100 for both at every noise level.)
+The energy column is the energy_threshold.py table, as it should be.
+
+The fan false alarms drop from 17 to 0 at noise 1.0 and from 100 to 34 at
+noise 0.1. It costs some person detections at the weaker end (51 to 46 at
+noise 1.0, 14 to 7 at noise 3.0): the floor estimate from 120 high bins
+has its own spread, and taking it off 160 low bins adds that spread to the
+feature, so the empty-room threshold sits higher relative to a weak
+breather. The pet goes through as before, which was expected, since it
+breathes below 4 Hz too.
+
+The 34 fans left at noise 0.1 are not spread evenly over speed:
+
+    rpm       80-100  100-120  120-140  140-160  160-180  180-200
+    fans          18       12       12       22       19       17
+    over thr       9        1        2        5       10        7
+
+Three blades flash at the blade-pass rate 3 rpm / 60, 4 to 10 Hz here.
+My guess is that the flash train is periodic enough to have harmonics, and
+those fold back into the low band: at 160 to 200 rpm the second harmonic
+(16 to 20 Hz) aliases to -4 to 0 Hz, and at 80 to 100 rpm the fundamental
+sits right at the 4 Hz cut. Not checked yet; looking at the spectrum of
+one 180 rpm fan would settle it.

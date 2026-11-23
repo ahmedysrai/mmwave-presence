@@ -11,12 +11,16 @@ breathing pet and a ceiling fan. The energy check passes a pet as a person
 whenever the pet is close enough to be seen, which is the case the
 classifier has to handle. Without noise, a ceiling fan spreads evenly over
 the whole +-10 Hz Doppler span while breathing stays below about 4 Hz.
+Taking that flat floor off the power below 4 Hz cuts the fan false alarms
+from 17 to 0 in 100 at the 1.0 noise level, for 46 people detected against
+51 with the energy check.
 
 ```
 pip install -e .[dev]
 pytest
 python experiments/energy_threshold.py    # about 40 s
 python experiments/doppler_spread.py      # about 10 s
+python experiments/low_band.py            # about 75 s
 ```
 
 Results so far are in NOTES.md.
