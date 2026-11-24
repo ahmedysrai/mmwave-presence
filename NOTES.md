@@ -187,3 +187,41 @@ those fold back into the low band: at 160 to 200 rpm the second harmonic
 (16 to 20 Hz) aliases to -4 to 0 Hz, and at 80 to 100 rpm the fundamental
 sits right at the 4 Hz cut. Not checked yet; looking at the spectrum of
 one 180 rpm fan would settle it.
+
+## 2026-11-24
+
+Checked yesterday's guess that the fans left over the low-band threshold
+are blade-pass harmonics folding into |f_d| < 4 Hz. It is wrong.
+
+`experiments/fan_spectrum.py` runs the fan alone, noise-free, at 80 to
+200 rpm in 5 rpm steps (five hub ranges each) and prints the share of the
+strongest range bin's Doppler power below 4 Hz. A flat spectrum gives
+0.40. Almost every speed gives 0.32 to 0.42. The exceptions are the speeds
+whose blade-pass rate divides the 20 Hz frame rate exactly (80, 100, 160
+and 200 rpm, i.e. 4, 5, 8 and 10 Hz): 0.08, 0.00, 0.08 and 0.00, with
+0.24 at 120 rpm (6 Hz, 3 blade passes every 10 frames). Only there is the
+spectrum a few clean lines, and they sit on multiples of the blade-pass
+rate, outside the low band. At any other speed a 2 ms flash caught every
+50 ms lands at a different point of the flash each chirp, and the
+spectrum looks like noise (figures/fan_spectrum.png, 183 rpm against
+100 rpm and a breathing person).
+
+So the low-band excess of a fan is a random number around zero whose
+spread grows with the fan's power. `low_band.py --fan-detail` splits the
+34 fans over the threshold at noise 0.1:
+
+    hub m     2-2.5  2.5-3  3-3.5  3.5-4
+    over      18/28   6/22   4/25   6/25
+
+    rpm       80-100  100-120  120-140  140-160  160-180  180-200
+    over        9/18     1/12     2/12     5/22    10/19     7/17
+
+The rpm row is yesterday's table. Hub range sorts them much better: two
+thirds of the near fans (strongest return) cross, against a quarter or
+less beyond 2.5 m. I now think the rpm pattern is mostly which hub ranges
+happened to be drawn with which speeds, but I haven't checked that
+directly. Taking the floor off is right on average; what is missing is a
+test of whether the excess is large compared with how much the floor
+estimate itself scatters. Next thing to try: divide the excess by the
+standard error of the floor (from the spread of the bins above 4 Hz)
+and threshold that.
