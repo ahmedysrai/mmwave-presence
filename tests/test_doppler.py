@@ -5,6 +5,7 @@ from mmpresence.doppler import (
     doppler_axis_hz,
     doppler_fft,
     low_band_excess,
+    low_band_score,
     velocity_axis_mps,
 )
 from mmpresence.fmcw import range_resolution_m
@@ -82,3 +83,36 @@ def test_low_band_excess_of_white_noise_is_near_zero():
     low_power = p[np.abs(doppler_axis_hz(n, 0.05)) < 4.0].sum(axis=0)
     # mean over bins goes to zero; each bin scatters around it
     assert abs(e.mean()) < 0.02 * low_power.mean()
+
+
+def test_low_band_score_does_not_change_with_power_scale():
+    rng = np.random.default_rng(1)
+    n = 400
+    x = rng.normal(size=(n, 50)) + 1j * rng.normal(size=(n, 50))
+    p = np.abs(doppler_fft(x)) ** 2
+    f_hz = doppler_axis_hz(n, 0.05)
+    np.testing.assert_allclose(
+        low_band_score(100.0 * p, f_hz), low_band_score(p, f_hz), rtol=1e-9, atol=1e-12
+    )
+
+
+def test_low_band_score_of_white_noise_spreads_by_about_1_4():
+    # Hann bins k and k+1 have power correlation 4/9, k and k+2 1/36, so a
+    # sum over many bins has 1 + 8/9 + 1/18 = 1.94 times the independent
+    # variance: std about 1.39 rather than 1.
+    rng = np.random.default_rng(1)
+    n, n_bins = 400, 4000
+    x = rng.normal(size=(n, n_bins)) + 1j * rng.normal(size=(n, n_bins))
+    z = low_band_score(np.abs(doppler_fft(x)) ** 2, doppler_axis_hz(n, 0.05))
+    assert abs(z.mean()) < 0.1
+    assert z.std() == pytest.approx(1.39, abs=0.08)
+
+
+def test_low_band_score_picks_out_a_slow_tone_in_noise():
+    rng = np.random.default_rng(2)
+    n = 400
+    t = np.arange(n) * 0.05
+    noise = rng.normal(size=n) + 1j * rng.normal(size=n)
+    x = np.exp(2j * np.pi * 0.25 * t) + noise
+    f_hz = doppler_axis_hz(n, 0.05)
+    assert low_band_score(np.abs(doppler_fft(x[:, None])) ** 2, f_hz)[0] > 5

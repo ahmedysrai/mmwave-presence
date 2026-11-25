@@ -53,3 +53,27 @@ def low_band_excess(power, f_hz, cut_hz=4.0):
     low = np.abs(f_hz) < cut_hz
     floor = power[~low].mean(axis=0)
     return power[low].sum(axis=0) - low.sum() * floor
+
+
+def low_band_score(power, f_hz, cut_hz=4.0):
+    """low_band_excess divided by how much it scatters when there is no target.
+
+    With only a flat floor in a range bin, each bin of power scatters with
+    some spread s, which the bins at |f_d| >= cut_hz estimate. The low-band
+    sum of n_low bins then has variance n_low s^2 and the floor estimate,
+    scaled up to n_low bins, adds n_low^2 s^2 / n_high. The excess is
+    divided by the square root of their sum. The score has no units, so a
+    strong fan whose excess is a large number around zero scores the same
+    as a weak one (NOTES.md 2026-11-24).
+
+    The Hann window correlates neighbouring Doppler bins, which this
+    ignores, so for white noise the score spreads a little wider than a
+    unit normal. Thresholds come from the empty room, so that only matters
+    when reading a score as a z value. Returns (n_bins,).
+    """
+    low = np.abs(f_hz) < cut_hz
+    n_low, n_high = low.sum(), (~low).sum()
+    s = power[~low].std(axis=0, ddof=1)
+    return low_band_excess(power, f_hz, cut_hz) / (
+        s * np.sqrt(n_low * (1 + n_low / n_high))
+    )
