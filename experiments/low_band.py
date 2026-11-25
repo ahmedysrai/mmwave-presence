@@ -1,9 +1,10 @@
-"""Low-band excess against the motion energy threshold, same protocol.
+"""Low-band excess and score against the motion energy threshold.
 
-Same scenes, seeds and wall as energy_threshold.py. Each window gives two
-features: the motion energy (the baseline, rangeproc.motion_energy) and the
-low-band excess (doppler.low_band_excess, max over range bins beyond
-0.5 m). Each feature gets its own threshold, the largest empty-room value
+Same scenes, seeds and wall as energy_threshold.py. Each window gives three
+features: the motion energy (the baseline, rangeproc.motion_energy), the
+low-band excess (doppler.low_band_excess) and the low-band score
+(doppler.low_band_score), the last two as the max over range bins beyond
+0.5 m. Each feature gets its own threshold, the largest empty-room value
 on the validation seed, and the counts over it on the test seeds are
 printed side by side. A pet or fan over the threshold is a false alarm.
 
@@ -12,9 +13,9 @@ printed side by side. A pet or fan over the threshold is a false alarm.
     python experiments/low_band.py --noise 0.1 --fan-detail
 
 --fan-detail also prints, for each noise level, the fans over the
-low-band threshold by hub range and by speed.
+excess and score thresholds by hub range and by speed.
 
-Both features come from the same simulated window, so the energy column is
+All features come from the same simulated window, so the energy column is
 the energy_threshold.py table.
 """
 
@@ -24,7 +25,12 @@ from itertools import pairwise
 import numpy as np
 from energy_threshold import FAN_RCS_M2, TEST_SEED, WALL_M, WALL_RCS_M2, scene_targets
 
-from mmpresence.doppler import doppler_axis_hz, doppler_fft, low_band_excess
+from mmpresence.doppler import (
+    doppler_axis_hz,
+    doppler_fft,
+    low_band_excess,
+    low_band_score,
+)
 from mmpresence.rangeproc import motion_energy, range_axis_m, range_fft, remove_static
 from mmpresence.sim import ChirpConfig, if_frames, two_way_amplitude
 
@@ -38,10 +44,13 @@ def features(cfg, kind, noise_std, rng, cut_hz, n_frames=400, r_min_m=0.5):
     )
     profiles = range_fft(if_frames(cfg, ranges, amps, noise_std, rng))
     p = np.abs(doppler_fft(remove_static(profiles))) ** 2
-    excess = low_band_excess(p, doppler_axis_hz(n_frames, cfg.frame_period_s), cut_hz)
-    return motion_energy(profiles, cfg, r_min_m), excess[
-        range_axis_m(cfg) >= r_min_m
-    ].max()
+    f_hz = doppler_axis_hz(n_frames, cfg.frame_period_s)
+    far = range_axis_m(cfg) >= r_min_m
+    return (
+        motion_energy(profiles, cfg, r_min_m),
+        low_band_excess(p, f_hz, cut_hz)[far].max(),
+        low_band_score(p, f_hz, cut_hz)[far].max(),
+    )
 
 
 def run(cfg, kind, noise_std, seed, n, cut_hz):
@@ -88,7 +97,7 @@ def main():
     cfg = ChirpConfig()
     n = args.trials
     head = "  ".join(f"{k:>7}" for k in TEST_SEED)
-    print(f"noise_std  energy: {head}   low band: {head}")
+    print(f"noise_std  energy: {head}   excess: {head}   score: {head}")
     for noise_std in args.noise:
         thr = run(cfg, "empty", noise_std, 1, n, args.cut).max(axis=0)
         over = np.array(
@@ -97,13 +106,15 @@ def main():
                 for k, seed in TEST_SEED.items()
             ]
         )
-        cols = ["  ".join(f"{c:3d}/{n:<3d}" for c in over[:, j]) for j in (0, 1)]
-        print(f"{noise_std:9.2f}          {cols[0]}             {cols[1]}")
+        cols = ["  ".join(f"{c:3d}/{n:<3d}" for c in over[:, j]) for j in (0, 1, 2)]
+        print(f"{noise_std:9.2f}          " + "           ".join(cols))
         if args.fan_detail:
             seed = TEST_SEED["fan"]
             fan = run(cfg, "fan", noise_std, seed, n, args.cut)
             hub_rpm = fan_draws(seed, n, noise_std, args.cut, cfg)
-            print_fan_detail(hub_rpm, fan[:, 1] > thr[1])
+            for j, name in [(1, "excess"), (2, "score")]:
+                print(f"  {name}")
+                print_fan_detail(hub_rpm, fan[:, j] > thr[j])
 
 
 if __name__ == "__main__":

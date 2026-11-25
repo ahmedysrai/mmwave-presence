@@ -225,3 +225,44 @@ test of whether the excess is large compared with how much the floor
 estimate itself scatters. Next thing to try: divide the excess by the
 standard error of the floor (from the spread of the bins above 4 Hz)
 and threshold that.
+
+## 2026-11-25
+
+Tried yesterday's idea: divide the low-band excess by how much it
+scatters when the range bin holds only a flat floor
+(`doppler.low_band_score`). The spread s of one Doppler bin's power comes
+from the 241 bins at |f_d| >= 4 Hz, and the excess is divided by
+s * sqrt(n_low * (1 + n_low / n_high)). For white noise that should be a
+unit normal if the bins were independent; the Hann window correlates
+neighbours (power correlation 4/9 one bin apart, 1/36 two apart), so the
+std comes out at 1.43 over 4000 range bins, against 1.39 from those
+correlations.
+
+`experiments/low_band.py` now prints three columns, each with its own
+empty-room threshold on the validation seed:
+
+    noise   energy (person pet fan)   excess (person pet fan)   score (person pet fan)
+     0.1        100   99  100              100   97   34              100   89    0
+     1.0         51   11   17               46    8    0               41    3    0
+     3.0         14    1    2                7    0    0                2    1    0
+    10.0          3    1    2                0    0    0                0    1    0
+
+out of 100 each, empty room 0/100 everywhere. The 34 fans at noise 0.1
+are gone, at every hub range (`--fan-detail`: 0/28 at 2-2.5 m, where the
+excess let 18/28 through). The pet at noise 0.1 drops from 97 to 89,
+which I didn't expect; probably the weaker pets at the far end, whose
+excess was large in absolute terms only because noise was low, but I
+haven't split it by range.
+
+The cost is at higher noise: 46 -> 41 people at 1.0, 7 -> 2 at 3.0. The
+empty-room score does not change with noise level at all (threshold 8.52
+at 0.1, 1.0 and 3.0, same seeds), because the room is the wall, which
+static removal takes out, plus noise, and the score has no units. That is
+the useful property: one fixed threshold holds the false alarm rate
+whatever the noise, the way CFAR does. But 8.52 is high. The empty
+windows have a median max-over-range score of 4.67 and the top five are
+6.35, 6.38, 6.57, 7.54 and 8.52, so the threshold is set by one or two
+windows out of 100, about 6 times the per-bin std. The median max over
+245 range bins of a std-1.43 normal is about 4, so the tail is heavier
+than normal; my guess is range bins where s comes out low by chance. The threshold would be steadier from a quantile of more empty
+windows than from the max of 100.

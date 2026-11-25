@@ -17,17 +17,22 @@ from 17 to 0 in 100 at the 1.0 noise level, for 46 people detected against
 
 ![Doppler spectrum of a person and two fans](figures/fan_spectrum.png)
 
-The fans left over the low-band threshold at low noise are the near, strong ones:
+The fans left over the excess threshold at low noise are the near, strong ones:
 at most speeds the fan's spectrum looks like noise (183 rpm above), and
 only when the blade-pass rate divides the 20 Hz frame rate does it fold
 into a few clean lines (100 rpm).
+Dividing the excess by its own scatter in the empty room
+(`low_band_score`) clears those fans too (34 -> 0 in 100 at noise 0.1),
+and its empty-room threshold stays the same at every noise level. It
+detects fewer people when the noise is high (41 against 46 at 1.0);
+NOTES.md has the table.
 
 ```
 pip install -e .[dev]
 pytest
 python experiments/energy_threshold.py    # about 40 s
 python experiments/doppler_spread.py      # about 10 s
-python experiments/low_band.py            # about 75 s
+python experiments/low_band.py            # about 70 s
 python experiments/fan_spectrum.py        # about 15 s, writes figures/
 ```
 
