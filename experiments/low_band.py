@@ -4,13 +4,19 @@ Same scenes, seeds and wall as energy_threshold.py. Each window gives three
 features: the motion energy (the baseline, rangeproc.motion_energy), the
 low-band excess (doppler.low_band_excess) and the low-band score
 (doppler.low_band_score), the last two as the max over range bins beyond
-0.5 m. Each feature gets its own threshold, the largest empty-room value
-on the validation seed, and the counts over it on the test seeds are
-printed side by side. A pet or fan over the threshold is a false alarm.
+0.5 m. Each feature gets its own threshold from the empty-room values on
+the validation seed, and the counts over it on the test seeds are printed
+side by side. A pet or fan over the threshold is a false alarm.
+
+By default the threshold is the largest of --trials empty windows. With
+--empty 1000 --quantile 0.99 it is the 99th percentile of 1000 empty
+windows instead, which a single heavy-tail window cannot move much; the
+empty column then reads about 1 in 100 by design.
 
     python experiments/low_band.py
     python experiments/low_band.py --cut 3
     python experiments/low_band.py --noise 0.1 --fan-detail
+    python experiments/low_band.py --empty 1000 --quantile 0.99
 
 --fan-detail also prints, for each noise level, the fans over the
 excess and score thresholds by hub range and by speed.
@@ -93,13 +99,20 @@ def main():
     ap.add_argument("--noise", type=float, nargs="+", default=[0.1, 1.0, 3.0, 10.0])
     ap.add_argument("--cut", type=float, default=4.0, help="Hz")
     ap.add_argument("--fan-detail", action="store_true")
+    ap.add_argument(
+        "--empty", type=int, help="empty validation windows (default --trials)"
+    )
+    ap.add_argument(
+        "--quantile", type=float, default=1.0, help="of the empty windows, 1 = max"
+    )
     args = ap.parse_args()
     cfg = ChirpConfig()
     n = args.trials
     head = "  ".join(f"{k:>7}" for k in TEST_SEED)
     print(f"noise_std  energy: {head}   excess: {head}   score: {head}")
     for noise_std in args.noise:
-        thr = run(cfg, "empty", noise_std, 1, n, args.cut).max(axis=0)
+        empty = run(cfg, "empty", noise_std, 1, args.empty or n, args.cut)
+        thr = np.quantile(empty, args.quantile, axis=0)
         over = np.array(
             [
                 (run(cfg, k, noise_std, seed, n, args.cut) > thr).sum(axis=0)

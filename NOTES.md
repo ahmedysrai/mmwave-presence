@@ -266,3 +266,45 @@ windows out of 100, about 6 times the per-bin std. The median max over
 245 range bins of a std-1.43 normal is about 4, so the tail is heavier
 than normal; my guess is range bins where s comes out low by chance. The threshold would be steadier from a quantile of more empty
 windows than from the max of 100.
+
+## 2026-11-26
+
+Yesterday's guess was that the score threshold (8.52) was high because
+it was the max of only 100 empty windows. `low_band.py` now takes
+`--empty N --quantile q`; the defaults (N = --trials, q = 1) give the
+old max and reproduce the 2026-11-25 table exactly. With 1000 empty
+windows on the same validation seed (the first 100 are yesterday's):
+
+    empty-room score, max over range   noise 0.1   1.0    3.0
+      max of 1000                        8.70      8.70   8.70
+      99.9th pct                         8.52      8.52   8.52
+      99th pct                           7.85      7.85   7.85
+      median                             4.63      4.63   4.63
+
+So 8.52 was not a fluke of a small sample: it is about the 1-in-1000
+point, and even the 99th percentile sits at 7.85, 1.7 times the median.
+The tail really is heavy. Same identical numbers at every noise level
+as yesterday.
+
+With every feature thresholded at its own 99th percentile of the 1000
+empty windows (test-seed empty room should then read about 1/100):
+
+    noise   energy (empty person pet fan)   excess (empty person pet fan)   score (empty person pet fan)
+     0.1        0  100   99  100                 0  100   98   36                 1  100   93    0
+     1.0        0   51   11   22                 0   49   10    0                 1   43    5    0
+     3.0        0   14    1    5                 0    9    1    0                 1    3    1    0
+    10.0        0    3    1    5                 0    0    1    0                 1    0    1    0
+
+out of 100 each. The score gets back 2 people at noise 1.0 (41 -> 43) and
+1 at 3.0 (2 -> 3) and still has no fans over it, but it stays behind the
+raw excess (49, 9) and the energy (51, 14). Energy and excess hardly move
+because their empty-room values are tight (energy q99 equals the max to
+three figures at noise 1.0). The empty column for energy and excess still
+reads 0/100 on the test seed, the score 1/100, as it should.
+
+So the score's loss of people is not about how the threshold is
+estimated. It comes from the shape of the empty-room score distribution.
+The next thing to check is whether the high empty windows are the ones
+where the floor spread s came out low, which would point at estimating s
+over more bins (or over neighbouring range bins) rather than at the
+threshold.

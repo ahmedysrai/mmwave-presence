@@ -25,7 +25,10 @@ Dividing the excess by its own scatter in the empty room
 (`low_band_score`) clears those fans too (34 -> 0 in 100 at noise 0.1),
 and its empty-room threshold stays the same at every noise level. It
 detects fewer people when the noise is high (41 against 46 at 1.0);
-NOTES.md has the table.
+NOTES.md has the table. Setting the thresholds from the 99th percentile
+of 1000 empty windows, rather than the largest of 100, gets back only
+two of those people (43 at 1.0), so the gap is in the score's empty-room
+tail and not in how few windows set the threshold.
 
 ```
 pip install -e .[dev]
@@ -33,6 +36,7 @@ pytest
 python experiments/energy_threshold.py    # about 40 s
 python experiments/doppler_spread.py      # about 10 s
 python experiments/low_band.py            # about 70 s
+python experiments/low_band.py --empty 1000 --quantile 0.99   # about 2 min
 python experiments/fan_spectrum.py        # about 15 s, writes figures/
 ```
 
