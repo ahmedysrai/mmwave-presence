@@ -116,3 +116,37 @@ def test_low_band_score_picks_out_a_slow_tone_in_noise():
     x = np.exp(2j * np.pi * 0.25 * t) + noise
     f_hz = doppler_axis_hz(n, 0.05)
     assert low_band_score(np.abs(doppler_fft(x[:, None])) ** 2, f_hz)[0] > 5
+
+
+def _noise_power(seed, n=400, n_bins=41):
+    rng = np.random.default_rng(seed)
+    x = rng.normal(size=(n, n_bins)) + 1j * rng.normal(size=(n, n_bins))
+    return np.abs(doppler_fft(x)) ** 2, doppler_axis_hz(n, 0.05)
+
+
+def test_pooled_score_uses_neighbour_spread_where_a_bin_reads_low():
+    p, f_hz = _noise_power(3)
+    high = np.abs(f_hz) >= 4.0
+    p[high, 20] *= 0.5  # floor and spread of bin 20 both come out halved
+    s = p[high].std(axis=0, ddof=1)
+    k = 8
+    expected = low_band_score(p, f_hz)[20] * s[20] / np.median(s[20 - k : 21 + k])
+    pooled = low_band_score(p, f_hz, pool_bins=k)
+    assert pooled[20] == pytest.approx(expected, rel=1e-9)
+    assert pooled[20] < 0.6 * low_band_score(p, f_hz)[20]
+
+
+def test_pooled_score_keeps_the_own_spread_of_a_strong_flat_bin():
+    p, f_hz = _noise_power(4)
+    p[:, 10] *= 20.0  # a fan-like bin: flat in Doppler, 20 times the noise
+    assert low_band_score(p, f_hz, pool_bins=8)[10] == pytest.approx(
+        low_band_score(p, f_hz)[10], rel=1e-12
+    )
+
+
+def test_pooling_only_pulls_scores_towards_zero():
+    p, f_hz = _noise_power(5, n_bins=200)
+    z0 = low_band_score(p, f_hz)
+    z8 = low_band_score(p, f_hz, pool_bins=8)
+    assert np.all(np.abs(z8) <= np.abs(z0) + 1e-12)
+    assert np.any(np.abs(z8) < np.abs(z0))

@@ -55,7 +55,7 @@ def low_band_excess(power, f_hz, cut_hz=4.0):
     return power[low].sum(axis=0) - low.sum() * floor
 
 
-def low_band_score(power, f_hz, cut_hz=4.0):
+def low_band_score(power, f_hz, cut_hz=4.0, pool_bins=0):
     """low_band_excess divided by how much it scatters when there is no target.
 
     With only a flat floor in a range bin, each bin of power scatters with
@@ -69,11 +69,21 @@ def low_band_score(power, f_hz, cut_hz=4.0):
     The Hann window correlates neighbouring Doppler bins, which this
     ignores, so for white noise the score spreads a little wider than a
     unit normal. Thresholds come from the empty room, so that only matters
-    when reading a score as a z value. Returns (n_bins,).
+    when reading a score as a z value.
+
+    With pool_bins = k > 0, s in each range bin is raised to the median s
+    of the 2k + 1 range bins around it (edge bins repeated at the ends),
+    never lowered. Taking the max over range otherwise picks bins whose s
+    came out low by chance; a bin with a strong flat-spectrum return, like
+    a fan, keeps its own larger s (NOTES.md 2026-11-27). Returns (n_bins,).
     """
     low = np.abs(f_hz) < cut_hz
     n_low, n_high = low.sum(), (~low).sum()
     s = power[~low].std(axis=0, ddof=1)
+    if pool_bins:
+        padded = np.pad(s, pool_bins, mode="edge")
+        windows = np.lib.stride_tricks.sliding_window_view(padded, 2 * pool_bins + 1)
+        s = np.maximum(s, np.median(windows, axis=-1))
     return low_band_excess(power, f_hz, cut_hz) / (
         s * np.sqrt(n_low * (1 + n_low / n_high))
     )
