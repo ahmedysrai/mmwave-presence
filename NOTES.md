@@ -308,3 +308,62 @@ The next thing to check is whether the high empty windows are the ones
 where the floor spread s came out low, which would point at estimating s
 over more bins (or over neighbouring range bins) rather than at the
 threshold.
+
+## 2026-11-27
+
+Are the high empty-room scores the windows where the floor spread s
+came out low? 300 empty windows on the validation seed at noise 1.0,
+looking at the range bin that gives each window its max score, with s
+divided by that window's median s over range:
+
+    window                 score   s / median s   excess / median s
+    top 1                   8.52       0.73             101
+    top 2                   8.50       0.74             102
+    top 3                   8.43       0.62              85
+    top 10 (range)    6.82-8.52   0.62-0.89          83-119
+    median window           4.67       0.82              62
+
+Over all range bins of all windows s / median s has 1st and 5th
+percentiles 0.77 and 0.83. So the bin that wins the max over range
+already has a low s in a typical window (0.82), and the top windows have
+s in about the lowest 1 to 2 percent, though their excess is high as well
+(correlation of score and s at the max bin -0.32). Low s is part of it,
+not all of it.
+
+First try: replace s in each bin by the median s of the 2k + 1 bins
+around it (noise after the range FFT is flat in range, so they should
+agree). The empty tail shrinks (q99 7.85 -> 5.97 at k = 8) and people
+come back, but at noise 0.1 fans go from 0 to 34-35 in 100 for k >= 4,
+which is the raw excess again. Of course: a strong fan in its own bin
+has a large s, and that is exactly what the score divides by. Pooling
+throws that away.
+
+So s is raised to the neighbourhood median but never lowered
+(`low_band_score(..., pool_bins=k)`, `low_band.py --pool k`). Same
+1000 empty windows and q99 thresholds as yesterday, score column only:
+
+    k                     0      2      4      8     16
+    empty median        4.63   4.13   4.01   3.96   3.94
+    empty q99           7.85   6.57   6.13   5.97   5.79
+    noise 0.1   fan        0      0      0      0      0
+                pet       93     96     97     98     98
+    noise 1.0   person    43     46     48     49     49
+                pet        5      7      9      8     10
+    noise 3.0   person     3      6      9      8      9
+
+out of 100. k = 0 is yesterday's column exactly. With k = 8 the score
+matches the excess at noise 1.0 (49) and is close at 3.0 (8 against 9),
+with no fans over it at any noise level, where the excess lets 36
+through at 0.1. Still behind the energy at 3.0 (14), but the energy lets
+22 fans through at 1.0. The test-seed empty room reads 2/100 at k = 8
+(1/100 at k = 0) against an expected 1 in 100.
+
+The pet drop at noise 0.1 (97 -> 89/93) that I noted on 11-25 mostly goes
+away too (98 at k = 8), so it was probably the same low-s effect rather
+than anything about range. The pet is a breathing target, so the score
+is right to fire on it; telling it apart from a person is the
+classifier's job later.
+
+k = 8 is a guess that sits on the flat part of the table; anything from 4
+up gives about the same. Next is CFAR over range, which needs the same
+kind of neighbourhood estimate, so this may get folded into it.

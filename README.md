@@ -28,7 +28,11 @@ detects fewer people when the noise is high (41 against 46 at 1.0);
 NOTES.md has the table. Setting the thresholds from the 99th percentile
 of 1000 empty windows, rather than the largest of 100, gets back only
 two of those people (43 at 1.0), so the gap is in the score's empty-room
-tail and not in how few windows set the threshold.
+tail and not in how few windows set the threshold. That tail comes from
+the max over range picking bins whose floor spread came out low by chance.
+With the spread raised to the median of the 8 range bins either side
+(`--pool 8`) the score detects 49 people at noise 1.0, the same as the
+excess, and still lets no fan through at any noise level.
 
 ```
 pip install -e .[dev]
@@ -37,6 +41,7 @@ python experiments/energy_threshold.py    # about 40 s
 python experiments/doppler_spread.py      # about 10 s
 python experiments/low_band.py            # about 70 s
 python experiments/low_band.py --empty 1000 --quantile 0.99   # about 2 min
+python experiments/low_band.py --empty 1000 --quantile 0.99 --pool 8
 python experiments/fan_spectrum.py        # about 15 s, writes figures/
 ```
 
