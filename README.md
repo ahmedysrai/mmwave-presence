@@ -34,6 +34,13 @@ With the spread raised to the median of the 8 range bins either side
 (`--pool 8`) the score detects 49 people at noise 1.0, the same as the
 excess, and still lets no fan through at any noise level.
 
+A fixed energy threshold only holds at the noise level it was learned at.
+Cell-averaging CFAR over range (`cfar.ca_cfar`) sets each bin's threshold
+from the bins around it instead. With the energy threshold learned at
+noise 1.0, both detect 51 people there, but at 3.0 the fixed threshold
+fires on all 100 empty rooms while CFAR fires on none and still finds 12
+people. CFAR on energy passes fans just as the energy check does.
+
 ```
 pip install -e .[dev]
 pytest
@@ -42,6 +49,7 @@ python experiments/doppler_spread.py      # about 10 s
 python experiments/low_band.py            # about 70 s
 python experiments/low_band.py --empty 1000 --quantile 0.99   # about 2 min
 python experiments/low_band.py --empty 1000 --quantile 0.99 --pool 8
+python experiments/cfar_range.py          # about 45 s
 python experiments/fan_spectrum.py        # about 15 s, writes figures/
 ```
 

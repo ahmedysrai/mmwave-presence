@@ -367,3 +367,51 @@ classifier's job later.
 k = 8 is a guess that sits on the flat part of the table; anything from 4
 up gives about the same. Next is CFAR over range, which needs the same
 kind of neighbourhood estimate, so this may get folded into it.
+
+## 2026-11-28
+
+CA-CFAR over range (`cfar.ca_cfar`) on the motion energy profile: mean
+|X|^2 over the 400 frames after static removal, bins beyond 0.5 m (245
+bins). 16 training and 2 guard bins a side. The threshold factor is the
+upper pfa point of F(2L, 2LN) for N training cells that are each a mean
+of L exponential powers; L = 399 here, since remove_static takes out one.
+
+First, does the design pfa hold per bin? 300 empty windows at noise 1.0,
+bins away from the ends:
+
+    design pfa         1e-2      1e-3      1e-4
+    guard 0          0.0091    0.0008    0.0001
+    guard 2          0.0107    0.0012    0.00015
+    guard 4          0.0108    0.0012    0.00018
+
+Close at 1e-2 and 1e-3, up to 1.8x high at 1e-4. The F formula assumes
+independent bins; neighbouring bins after the Hann range FFT have power
+correlation 0.44, which is (2/3)^2 for Hann's neighbour coherence of 2/3.
+Two bins apart it is 0.01. I have not worked out why that pushes the
+far tail up; noted, not chased.
+
+Then `experiments/cfar_range.py`: a detection if any bin fires, per-bin
+pfa 1 % over 245 bins. Against it, the energy check with its threshold
+set once at noise 1.0 (largest of 100 empty windows) and kept:
+
+    noise  detector   empty  person  pet  fan
+    0.3    energy        0     15     0     0
+    0.3    CFAR          0     99    53    99
+    1.0    energy        0     51    11    17
+    1.0    CFAR          0     51     9    15
+    3.0    energy      100    100   100   100
+    3.0    CFAR          0     12     1     4
+
+out of 100. At the noise level the fixed threshold was set at, the two
+are the same (51 people, the energy_threshold.py column, and 15 against
+17 fans). Away from it the fixed threshold either misses most people
+(0.3) or fires on everything (3.0); CFAR keeps the empty room at 0 and
+at 3.0 gets 12 people, against 14 for an energy threshold re-learned at
+that level. That is the case CFAR is for: the noise floor of a real
+radar moves with temperature, gain and the wall, and nobody re-learns a
+threshold each time.
+
+CFAR does nothing about the fan (15 at 1.0, 99 at 0.3, where it is
+strong enough to stand out). It looks at energy only; the low-band score
+is what separates the fan by its spectrum. The two can go together:
+the score already divides by a spread taken from neighbouring range bins.
