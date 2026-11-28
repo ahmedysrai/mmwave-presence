@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "Through-wall presence sensing with simulated FMCW radar"
 requires-python = ">=3.10"
 license = "MIT"
-dependencies = ["numpy>=1.24"]
+dependencies = ["numpy>=1.24", "scipy>=1.10"]
 
 [project.optional-dependencies]
 dev = ["matplotlib", "pytest", "ruff"]
